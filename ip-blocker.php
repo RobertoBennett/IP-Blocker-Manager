@@ -2,7 +2,7 @@
 /*
 Plugin Name: IP Blocker Manager
 Description: Управление блокировкой IP-адресов через .htaccess
-Plugin URI: https://yoursite.com/
+Plugin URI: https://github.com/RobertoBennett/IP-Blocker-Manager
 Version: 1.2
 Author: Robert Bennett
 Updated by: Assistant
@@ -353,5 +353,6 @@ class Safe_IP_Blocker {
         $this->update_rules('');
     }
 }
+
 
 new Safe_IP_Blocker();
