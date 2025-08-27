@@ -1,11 +1,10 @@
 <?php
 /*
-Plugin Name: IP Blocker Manager
-Description: Управление блокировкой IP-адресов через .htaccess
+Plugin Name: Advanced Security IP Blocker
+Description: Комплексная система безопасности: блокировка IP, защита wp-login.php, блокировка опасных файлов и ботов
 Plugin URI: https://github.com/RobertoBennett/IP-Blocker-Manager
-Version: 1.2
+Version: 2.2
 Author: Robert Bennett
-Updated by: Assistant
 Text Domain: IP Blocker Manager
 */
 
@@ -1026,3 +1025,4 @@ private function update_login_protection($whitelist_ips) {
 }
 
 new Advanced_Security_Blocker();
+
