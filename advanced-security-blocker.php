@@ -1,9 +1,9 @@
 <?php
 /*
 Plugin Name: Advanced Security IP Blocker
-Description: Комплексная система безопасности: блокировка IP, защита wp-login.php, блокировка опасных файлов и ботов с поддержкой ASN
+Description: Комплексная система безопасности: блокировка IP, защита wp-login.php и xmlrpc.php, блокировка опасных файлов и ботов с поддержкой ASN
 Plugin URI: https://github.com/RobertoBennett/IP-Blocker-Manager
-Version: 2.3
+Version: 2.4
 Author: Robert Bennett
 Text Domain: IP Blocker Manager
 */
@@ -365,6 +365,22 @@ class Advanced_Security_Blocker {
             padding: 10px 15px;
             margin: 15px 0;
         }
+        .protection-options {
+            background: #f0f8ff;
+            border: 1px solid #b8daff;
+            border-left: 4px solid #0073aa;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .protection-checkbox {
+            margin: 10px 0;
+        }
+        .protection-checkbox input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .protection-checkbox label {
+            font-weight: 500;
+        }
         </style>
         <?php
     }
@@ -427,9 +443,12 @@ class Advanced_Security_Blocker {
         if (isset($_POST['submit_login_protection'])) {
             check_admin_referer('security_blocker_update');
             $whitelist_ips = isset($_POST['login_whitelist_ips']) ? sanitize_textarea_field($_POST['login_whitelist_ips']) : '';
-            $result = $this->update_login_protection($whitelist_ips);
+            $protect_wp_login = isset($_POST['protect_wp_login']) ? true : false;
+            $protect_xmlrpc = isset($_POST['protect_xmlrpc']) ? true : false;
+            
+            $result = $this->update_login_protection($whitelist_ips, $protect_wp_login, $protect_xmlrpc);
             if ($result === true) {
-                $success = 'Защита wp-login.php успешно обновлена!';
+                $success = 'Защита wp-login.php и xmlrpc.php успешно обновлена!';
             } else {
                 $error = 'Ошибка защиты входа: ' . $result;
             }
@@ -474,6 +493,9 @@ class Advanced_Security_Blocker {
         $current_files = get_option('asb_dangerous_files', '');
         $current_bots = get_option('asb_blocked_bots', '');
         $current_user_ip = $this->get_user_ip();
+        
+        // Проверяем текущие настройки защиты
+        $current_protection = $this->get_current_protection_settings();
         ?>
         <div class="wrap">
             <h1>Расширенная Система Безопасности</h1>
@@ -492,7 +514,7 @@ class Advanced_Security_Blocker {
             <div class="security-tabs">
                 <div class="security-tab-nav">
                     <button type="button" data-tab="tab-ip-blocking" class="active">Блокировка IP</button>
-                    <button type="button" data-tab="tab-login-protection">Защита wp-login.php</button>
+                    <button type="button" data-tab="tab-login-protection">Защита wp-login.php и xmlrpc.php</button>
                     <button type="button" data-tab="tab-file-protection">Блокировка файлов</button>
                     <button type="button" data-tab="tab-bot-protection">Защита от ботов</button>
                     <button type="button" data-tab="tab-status">Статус системы</button>
@@ -536,9 +558,9 @@ class Advanced_Security_Blocker {
                     </form>
                 </div>
 
-                <!-- Вкладка защиты wp-login.php -->
+                <!-- Вкладка защиты wp-login.php и xmlrpc.php -->
                 <div id="tab-login-protection" class="security-tab-content">
-                    <h2>Ограничение доступа к wp-login.php</h2>
+                    <h2>Ограничение доступа к wp-login.php и xmlrpc.php</h2>
                     <div class="security-warning">
                         <strong>Внимание!</strong> Убедитесь, что ваш IP-адрес добавлен в белый список, иначе вы не сможете войти в админ-панель!
                         <br>Ваш текущий IP: <strong><?php echo esc_html($current_user_ip); ?></strong>
@@ -546,11 +568,37 @@ class Advanced_Security_Blocker {
                     <div class="asn-info">
                         <strong>Поддержка ASN!</strong> Можно разрешить доступ целым автономным системам, например <code>AS15169</code> для Google.
                     </div>
+                    
+                    <div class="protection-options">
+                        <h3>Выберите файлы для защиты:</h3>
+                        <div class="protection-checkbox">
+                            <input type="checkbox" id="protect_wp_login" name="protect_wp_login" value="1" 
+                                <?php checked($current_protection['wp_login']); ?>>
+                            <label for="protect_wp_login">
+                                <strong>wp-login.php</strong> - Защита страницы входа в админ-панель
+                            </label>
+                        </div>
+                        <div class="protection-checkbox">
+                            <input type="checkbox" id="protect_xmlrpc" name="protect_xmlrpc" value="1" 
+                                <?php checked($current_protection['xmlrpc']); ?>>
+                            <label for="protect_xmlrpc">
+                                <strong>xmlrpc.php</strong> - Защита XML-RPC интерфейса (используется для удаленного управления)
+                            </label>
+                        </div>
+                        <p class="description">
+                            <strong>xmlrpc.php</strong> часто используется для атак методом перебора паролей. 
+                            Рекомендуется блокировать его, если вы не используете мобильные приложения WordPress или удаленное управление.
+                        </p>
+                    </div>
+                    
                     <form method="post">
                         <?php wp_nonce_field('security_blocker_update'); ?>
+                        <input type="hidden" id="protect_wp_login_hidden" name="protect_wp_login" value="0">
+                        <input type="hidden" id="protect_xmlrpc_hidden" name="protect_xmlrpc" value="0">
+                        
                         <table class="form-table">
                             <tr>
-                                <th><label for="login_whitelist_ips">Разрешенные IP для wp-login.php:</label></th>
+                                <th><label for="login_whitelist_ips">Разрешенные IP:</label></th>
                                 <td>
                                     <div class="ip-blocker-textarea-wrapper">
                                         <div class="ip-blocker-line-numbers"></div>
@@ -573,7 +621,7 @@ class Advanced_Security_Blocker {
                         </table>
                         <p>
                             <button type="submit" name="submit_login_protection" class="button button-primary">
-                                Сохранить защиту входа
+                                Сохранить защиту
                             </button>
                             <button type="button" class="button" onclick="addCurrentIP();">
                                 Добавить мой IP
@@ -676,9 +724,15 @@ class Advanced_Security_Blocker {
                             <li>Блокировка IP: <?php echo !empty($current_ips) ? 
                                 '<span style="color:green">✓ Активна (' . count(array_filter(explode("\n", trim($current_ips)))) . ' записей)</span>' : 
                                 '<span style="color:gray">○ Неактивна</span>'; ?></li>
-                            <li>Защита wp-login.php: <?php echo !empty($current_whitelist) ? 
-                                '<span style="color:green">✓ Активна (' . count(array_filter(explode("\n", trim($current_whitelist)))) . ' разрешенных записей)</span>' : 
+                            <li>Защита wp-login.php: <?php echo $current_protection['wp_login'] ? 
+                                '<span style="color:green">✓ Активна</span>' : 
                                 '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                            <li>Защита xmlrpc.php: <?php echo $current_protection['xmlrpc'] ? 
+                                '<span style="color:green">✓ Активна</span>' : 
+                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                            <li>Разрешенных IP: <?php echo !empty($current_whitelist) ? 
+                                '<span style="color:green">' . count(array_filter(explode("\n", trim($current_whitelist)))) . ' записей</span>' : 
+                                '<span style="color:gray">0 записей</span>'; ?></li>
                             <li>Блокировка файлов: <?php echo !empty($current_files) ? 
                                 '<span style="color:green">✓ Активна (' . count(array_filter(explode("\n", trim($current_files)))) . ' правил)</span>' : 
                                 '<span style="color:gray">○ Неактивна</span>'; ?></li>
@@ -753,6 +807,28 @@ class Advanced_Security_Blocker {
             // Показываем первую вкладку по умолчанию
             showTab("tab-ip-blocking");
             
+            // Синхронизация чекбоксов с скрытыми полями
+            var wpLoginCheckbox = document.getElementById('protect_wp_login');
+            var xmlrpcCheckbox = document.getElementById('protect_xmlrpc');
+            var wpLoginHidden = document.getElementById('protect_wp_login_hidden');
+            var xmlrpcHidden = document.getElementById('protect_xmlrpc_hidden');
+            
+            if (wpLoginCheckbox && wpLoginHidden) {
+                wpLoginCheckbox.addEventListener('change', function() {
+                    wpLoginHidden.value = this.checked ? '1' : '0';
+                });
+                // Устанавливаем начальное значение
+                wpLoginHidden.value = wpLoginCheckbox.checked ? '1' : '0';
+            }
+            
+            if (xmlrpcCheckbox && xmlrpcHidden) {
+                xmlrpcCheckbox.addEventListener('change', function() {
+                    xmlrpcHidden.value = this.checked ? '1' : '0';
+                });
+                // Устанавливаем начальное значение
+                xmlrpcHidden.value = xmlrpcCheckbox.checked ? '1' : '0';
+            }
+            
             // Нумерация строк для textarea
             function setupLineNumbers(wrapper) {
                 var textarea = wrapper.querySelector('textarea');
@@ -805,6 +881,27 @@ class Advanced_Security_Blocker {
         }
         
         return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+    }
+
+    // Получение текущих настроек защиты
+    private function get_current_protection_settings() {
+        if (!file_exists($this->htaccess_path)) {
+            return ['wp_login' => false, 'xmlrpc' => false];
+        }
+        
+        $htaccess = file_get_contents($this->htaccess_path);
+        preg_match('/' . preg_quote($this->marker_login, '/') . '(.*?)' . preg_quote($this->marker_login, '/') . '/s', $htaccess, $matches);
+        
+        if (empty($matches[1])) {
+            return ['wp_login' => false, 'xmlrpc' => false];
+        }
+        
+        $content = $matches[1];
+        
+        return [
+            'wp_login' => strpos($content, 'wp-login.php') !== false,
+            'xmlrpc' => strpos($content, 'xmlrpc.php') !== false
+        ];
     }
 
     // Обновленная функция блокировки IP с поддержкой ASN
@@ -902,8 +999,8 @@ class Advanced_Security_Blocker {
         }
     }
 
-    // Обновленная функция защиты wp-login.php с поддержкой ASN
-    private function update_login_protection($whitelist_ips) {
+    // Обновленная функция защиты wp-login.php и xmlrpc.php с поддержкой ASN
+    private function update_login_protection($whitelist_ips, $protect_wp_login = false, $protect_xmlrpc = false) {
         $this->log = [];
         
         try {
@@ -916,107 +1013,132 @@ class Advanced_Security_Blocker {
             $pattern = '/\n?' . preg_quote($this->marker_login, '/') . '.*?' . preg_quote($this->marker_login, '/') . '/s';
             $htaccess = preg_replace($pattern, '', $htaccess);
             
+            // Если ни один файл не выбран для защиты, просто удаляем правила
+            if (!$protect_wp_login && !$protect_xmlrpc) {
+                $this->log[] = "Защита wp-login.php и xmlrpc.php отключена";
+                
+                if (!file_put_contents($this->htaccess_path, $htaccess)) {
+                    throw new Exception('Не удалось записать в .htaccess');
+                }
+                
+                $this->log[] = "Изменения успешно применены";
+                return true;
+            }
+            
             if (!empty(trim($whitelist_ips))) {
                 $ip_list = explode("\n", $whitelist_ips);
                 $ip_list = array_map('trim', $ip_list);
                 $ip_list = array_filter($ip_list);
                 $ip_list = array_unique($ip_list);
                 
-                $rules = [
-                    '<Files "wp-login.php">',
-                    'Order Deny,Allow',
-                    'Deny from all'
-                ];
+                $files_to_protect = [];
+                if ($protect_wp_login) $files_to_protect[] = 'wp-login.php';
+                if ($protect_xmlrpc) $files_to_protect[] = 'xmlrpc.php';
                 
-                $valid_ips = [];
-                $invalid_ips = [];
-                $asn_ranges = [];
+                $rules = [];
                 
-                foreach ($ip_list as $entry) {
-                    $is_valid = false;
+                // Создаем отдельные блоки для каждого файла
+                foreach ($files_to_protect as $file) {
+                    $rules[] = "<Files \"{$file}\">";
+                    $rules[] = 'Order Deny,Allow';
+                    $rules[] = 'Deny from all';
                     
-                    // Проверяем ASN
-                    if (preg_match('/^AS?(\d+)$/i', $entry, $matches)) {
-                        $asn = $matches[1];
-                        $this->log[] = "Обработка ASN для whitelist: AS{$asn}";
+                    $valid_ips = [];
+                    $invalid_ips = [];
+                    $asn_ranges = [];
+                    
+                    foreach ($ip_list as $entry) {
+                        $is_valid = false;
                         
-                        $ranges = $this->get_asn_ip_ranges($asn);
-                        if ($ranges && !empty($ranges)) {
-                            foreach ($ranges as $range) {
-                                $rules[] = "Allow from {$range}";
-                                $asn_ranges[] = $range;
+                        // Проверяем ASN
+                        if (preg_match('/^AS?(\d+)$/i', $entry, $matches)) {
+                            $asn = $matches[1];
+                            $this->log[] = "Обработка ASN для whitelist: AS{$asn}";
+                            
+                            $ranges = $this->get_asn_ip_ranges($asn);
+                            if ($ranges && !empty($ranges)) {
+                                foreach ($ranges as $range) {
+                                    $rules[] = "Allow from {$range}";
+                                    $asn_ranges[] = $range;
+                                }
+                                $this->log[] = "ASN AS{$asn}: добавлено в whitelist " . count($ranges) . " диапазонов для {$file}";
+                                $is_valid = true;
                             }
-                            $this->log[] = "ASN AS{$asn}: добавлено в whitelist " . count($ranges) . " диапазонов";
-                            $is_valid = true;
                         }
-                    }
-                    // CIDR диапазон
-                    else if (strpos($entry, '/') !== false) {
-                        list($ip, $mask) = explode('/', $entry, 2);
-                        if (filter_var($ip, FILTER_VALIDATE_IP) && 
-                            is_numeric($mask) && $mask >= 0 && $mask <= 32) {
+                        // CIDR диапазон
+                        else if (strpos($entry, '/') !== false) {
+                            list($ip, $mask) = explode('/', $entry, 2);
+                            if (filter_var($ip, FILTER_VALIDATE_IP) && 
+                                is_numeric($mask) && $mask >= 0 && $mask <= 32) {
+                                $rules[] = "Allow from {$entry}";
+                                $valid_ips[] = $entry;
+                                $is_valid = true;
+                            }
+                        }
+                        // Обычный IP
+                        else if (filter_var($entry, FILTER_VALIDATE_IP)) {
                             $rules[] = "Allow from {$entry}";
                             $valid_ips[] = $entry;
                             $is_valid = true;
-                            $this->log[] = "Добавлен CIDR диапазон: {$entry}";
                         }
-                    }
-                    // Обычный IP
-                    else if (filter_var($entry, FILTER_VALIDATE_IP)) {
-                        $rules[] = "Allow from {$entry}";
-                        $valid_ips[] = $entry;
-                        $is_valid = true;
-                    }
-                    // Диапазон с маской подсети
-                    else if (preg_match('/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', $entry, $matches)) {
-                        $ip = $matches[1];
-                        $netmask = $matches[2];
-                        
-                        if (filter_var($ip, FILTER_VALIDATE_IP) && filter_var($netmask, FILTER_VALIDATE_IP)) {
-                            $rules[] = "Allow from {$ip} {$netmask}";
-                            $valid_ips[] = $entry;
-                            $is_valid = true;
-                            $this->log[] = "Добавлен диапазон с маской: {$entry}";
+                        // Диапазон с маской подсети
+                        else if (preg_match('/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', $entry, $matches)) {
+                            $ip = $matches[1];
+                            $netmask = $matches[2];
+                            
+                            if (filter_var($ip, FILTER_VALIDATE_IP) && filter_var($netmask, FILTER_VALIDATE_IP)) {
+                                $rules[] = "Allow from {$ip} {$netmask}";
+                                $valid_ips[] = $entry;
+                                $is_valid = true;
+                            }
                         }
-                    }
-                    // Частичные IP
-                    else if (preg_match('/^(\d{1,3}\.){1,3}\d{1,3}$/', $entry) && 
-                             !filter_var($entry, FILTER_VALIDATE_IP)) {
-                        $parts = explode('.', $entry);
-                        $valid_partial = true;
-                        
-                        foreach ($parts as $part) {
-                            if (!is_numeric($part) || $part < 0 || $part > 255) {
-                                $valid_partial = false;
-                                break;
+                        // Частичные IP
+                        else if (preg_match('/^(\d{1,3}\.){1,3}\d{1,3}$/', $entry) && 
+                                 !filter_var($entry, FILTER_VALIDATE_IP)) {
+                            $parts = explode('.', $entry);
+                            $valid_partial = true;
+                            
+                            foreach ($parts as $part) {
+                                if (!is_numeric($part) || $part < 0 || $part > 255) {
+                                    $valid_partial = false;
+                                    break;
+                                }
+                            }
+                            
+                            if ($valid_partial && count($parts) >= 1 && count($parts) <= 3) {
+                                $rules[] = "Allow from {$entry}";
+                                $valid_ips[] = $entry;
+                                $is_valid = true;
                             }
                         }
                         
-                        if ($valid_partial && count($parts) >= 1 && count($parts) <= 3) {
-                            $rules[] = "Allow from {$entry}";
-                            $valid_ips[] = $entry;
-                            $is_valid = true;
-                            $this->log[] = "Добавлен частичный IP: {$entry}";
+                        if (!$is_valid && !in_array($entry, $invalid_ips)) {
+                            $invalid_ips[] = $entry;
                         }
                     }
                     
-                    if (!$is_valid) {
-                        $invalid_ips[] = $entry;
-                    }
+                    $rules[] = '</Files>';
+                    $rules[] = ''; // Пустая строка между блоками
                 }
                 
                 if (!empty($invalid_ips)) {
                     $this->log[] = "Недопустимые записи (игнорированы): " . implode(', ', $invalid_ips);
                 }
                 
-                $rules[] = '</Files>';
+                // Удаляем последнюю пустую строку
+                if (end($rules) === '') {
+                    array_pop($rules);
+                }
                 
                 $block = "\n" . $this->marker_login . "\n" . implode("\n", $rules) . "\n" . $this->marker_login . "\n";
                 $htaccess = $block . $htaccess;
                 
-                $this->log[] = "Защита wp-login.php: IP/диапазоны: " . count($valid_ips) . ", ASN диапазоны: " . count($asn_ranges);
+                $protected_files = implode(', ', $files_to_protect);
+                $this->log[] = "Защита активирована для: {$protected_files}";
+                $this->log[] = "IP/диапазоны: " . count(array_unique($valid_ips)) . ", ASN диапазоны: " . count(array_unique($asn_ranges));
             } else {
-                $this->log[] = "Защита wp-login.php отключена";
+                $this->log[] = "Не указаны разрешенные IP адреса";
+                return "Необходимо указать хотя бы один разрешенный IP адрес";
             }
             
             if (!file_put_contents($this->htaccess_path, $htaccess)) {
@@ -1191,7 +1313,7 @@ class Advanced_Security_Blocker {
         return implode("\n", array_unique($ips[1]));
     }
 
-    // Получение текущего белого списка для wp-login.php
+    // Получение текущего белого списка для wp-login.php и xmlrpc.php
     private function get_current_login_whitelist() {
         if (!file_exists($this->htaccess_path)) return '';
         
@@ -1247,7 +1369,7 @@ class Advanced_Security_Blocker {
     // Деактивация плагина - очистка всех правил
     public function deactivate() {
         $this->update_ip_rules('');
-        $this->update_login_protection('');
+        $this->update_login_protection('', false, false);
         $this->update_file_protection('');
         $this->update_bot_protection('');
     }
