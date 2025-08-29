@@ -1,6 +1,6 @@
 # Advanced Security IP Blocker
 
-![Version](https://img.shields.io/badge/Version-2.4-blue.svg)
+![Version](https://img.shields.io/badge/Version-2.5-blue.svg)
 ![Author](https://img.shields.io/badge/Author-Robert%20Bennett-lightgrey.svg)
 ![License](https://img.shields.io/badge/License-GPLv2%2B-green.svg)
 ![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg)
