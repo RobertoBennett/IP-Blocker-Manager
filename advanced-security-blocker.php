@@ -1,9 +1,9 @@
 <?php
 /*
 Plugin Name: Advanced Security IP Blocker
-Description: Комплексная система безопасности: блокировка IP, защита wp-login.php и xmlrpc.php, блокировка опасных файлов и ботов с поддержкой ASN
+Description: Продвинутая система безопасности: блокировка IP, защита wp-login.php и xmlrpc.php, блокировка опасных файлов и ботов с поддержкой ASN
 Plugin URI: https://github.com/RobertoBennett/IP-Blocker-Manager
-Version: 2.4
+Version: 2.5
 Author: Robert Bennett
 Text Domain: IP Blocker Manager
 */
@@ -71,11 +71,11 @@ class Advanced_Security_Blocker {
     public function enqueue_scripts($hook) {
         if ($hook !== 'settings_page_advanced-security-blocker') return;
         
-        // Добавляем jQuery если еще не подключен
+        // Подключаем jQuery если еще не подключен
         wp_enqueue_script('jquery');
     }
 
-    // ASN кэширование и API методы
+    // ASN кеширование и API методы
     private function get_asn_cache_file($asn) {
         return $this->cache_dir . 'asn_' . $asn . '.json';
     }
@@ -86,11 +86,11 @@ class Advanced_Security_Blocker {
         if (file_exists($cache_file)) {
             $cache_data = json_decode(file_get_contents($cache_file), true);
             
-            // Проверяем, не устарел ли кэш (24 часа)
+            // Проверяем, не устарел ли кеш (24 часа)
             if (isset($cache_data['timestamp']) && 
                 (time() - $cache_data['timestamp']) < 86400) {
                 
-                $this->log[] = "ASN AS{$asn}: использованы кэшированные данные";
+                $this->log[] = "ASN AS{$asn}: использованы кешированные данные";
                 return $cache_data['ranges'];
             }
         }
@@ -107,7 +107,7 @@ class Advanced_Security_Blocker {
         ];
         
         file_put_contents($cache_file, json_encode($cache_data));
-        $this->log[] = "ASN AS{$asn}: данные кэшированы";
+        $this->log[] = "ASN AS{$asn}: данные кешированы";
     }
 
     private function clear_asn_cache() {
@@ -120,13 +120,13 @@ class Advanced_Security_Blocker {
             }
         }
         
-        $this->log[] = "Очищено кэш файлов ASN: {$cleared}";
+        $this->log[] = "Очищен кеш данных ASN: {$cleared}";
         return $cleared;
     }
 
     // Получение IP диапазонов по ASN
     private function get_asn_ip_ranges($asn) {
-        // Сначала проверяем кэш
+        // Сначала проверяем кеш
         $cached_ranges = $this->get_cached_asn_ranges($asn);
         if ($cached_ranges !== false) {
             return $cached_ranges;
@@ -141,7 +141,7 @@ class Advanced_Security_Blocker {
             return false;
         }
         
-        // Используем несколько источников для получения диапазонов
+        // Используем несколько источников для получения информации
         $sources = [
             "https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{$asn}",
             "https://api.hackertarget.com/aslookup/?q=AS{$asn}"
@@ -169,14 +169,14 @@ class Advanced_Security_Blocker {
                 }
                 
                 if (!empty($ip_ranges)) {
-                    break; // Если получили данные, не пробуем другие источники
+                    break; // Если получили данные, то больше источники не проверяем
                 }
             }
         }
         
         $unique_ranges = array_unique($ip_ranges);
         
-        // Кэшируем результат
+        // Кешируем результат
         if (!empty($unique_ranges)) {
             $this->cache_asn_ranges($asn, $unique_ranges);
         }
@@ -184,7 +184,7 @@ class Advanced_Security_Blocker {
         return $unique_ranges;
     }
 
-    // Простой HTTP клиент
+    // Функция HTTP запроса
     private function fetch_url($url, $timeout = 10) {
         // Используем cURL если доступен
         if (function_exists('curl_init')) {
@@ -395,7 +395,7 @@ class Advanced_Security_Blocker {
         
         if (!is_dir($this->cache_dir)) {
             wp_mkdir_p($this->cache_dir);
-            // Создаем .htaccess для защиты папки с кэшем
+            // Создаем .htaccess для защиты папки с кешем
             $htaccess_content = "Order deny,allow\nDeny from all\n";
             file_put_contents($this->cache_dir . '.htaccess', $htaccess_content);
         }
@@ -403,7 +403,7 @@ class Advanced_Security_Blocker {
 
     public function admin_menu() {
         add_options_page(
-            'Расширенная Безопасность',
+            'Продвинутая безопасность',
             'Безопасность',
             'manage_options',
             'advanced-security-blocker',
@@ -419,13 +419,13 @@ class Advanced_Security_Blocker {
         $error = $success = '';
         $operation_log = '';
 
-        // Показываем сообщения
+        // Обработчики уведомлений
         if (isset($_GET['backup_created'])) {
             $success = 'Резервная копия .htaccess успешно создана!';
         }
         
         if (isset($_GET['cache_cleared'])) {
-            $success = 'Кэш ASN успешно очищен!';
+            $success = 'Кеш ASN успешно очищен!';
         }
 
         // Обработка форм
@@ -443,8 +443,10 @@ class Advanced_Security_Blocker {
         if (isset($_POST['submit_login_protection'])) {
             check_admin_referer('security_blocker_update');
             $whitelist_ips = isset($_POST['login_whitelist_ips']) ? sanitize_textarea_field($_POST['login_whitelist_ips']) : '';
-            $protect_wp_login = isset($_POST['protect_wp_login']) ? true : false;
-            $protect_xmlrpc = isset($_POST['protect_xmlrpc']) ? true : false;
+            
+            // ИСПРАВЛЕНИЕ: Правильная обработка чекбоксов
+            $protect_wp_login = isset($_POST['protect_wp_login']) && $_POST['protect_wp_login'] === '1';
+            $protect_xmlrpc = isset($_POST['protect_xmlrpc']) && $_POST['protect_xmlrpc'] === '1';
             
             $result = $this->update_login_protection($whitelist_ips, $protect_wp_login, $protect_xmlrpc);
             if ($result === true) {
@@ -494,11 +496,11 @@ class Advanced_Security_Blocker {
         $current_bots = get_option('asb_blocked_bots', '');
         $current_user_ip = $this->get_user_ip();
         
-        // Проверяем текущие настройки защиты
+        // Получаем текущие настройки защиты
         $current_protection = $this->get_current_protection_settings();
         ?>
         <div class="wrap">
-            <h1>Расширенная Система Безопасности</h1>
+            <h1>Продвинутая система безопасности</h1>
             
             <?php if ($error) : ?>
                 <div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div>
@@ -525,7 +527,7 @@ class Advanced_Security_Blocker {
                     <h2>Блокировка IP-адресов</h2>
                     <div class="asn-info">
                         <strong>Новая функция!</strong> Теперь поддерживается блокировка по ASN (Autonomous System Number).
-                        Просто добавьте номер ASN в формате <code>AS15169</code> или <code>15169</code>
+                        Просто укажите номер ASN в формате <code>AS15169</code> или <code>15169</code>
                     </div>
                     <form method="post">
                         <?php wp_nonce_field('security_blocker_update'); ?>
@@ -542,17 +544,17 @@ class Advanced_Security_Blocker {
                                     </div>
                                     <p class="description ip-blocker-description">
                                         По одной записи на строку. Поддерживаемые форматы:<br>
-                                        • Одиночный IP: <code>192.168.1.100</code><br>
-                                        • CIDR диапазон: <code>192.168.1.0/24</code><br>
-                                        • ASN (автономная система): <code>AS15169</code> или <code>15169</code><br>
-                                        <em>ASN автоматически преобразуется в список IP диапазонов</em>
+                                        • Отдельные IP: <code>192.168.1.100</code><br>
+                                        • CIDR диапазоны: <code>192.168.1.0/24</code><br>
+                                        • ASN (автономные системы): <code>AS15169</code> или <code>15169</code><br>
+                                        <em>ASN автоматически преобразуются в списки IP диапазонов</em>
                                     </p>
                                 </td>
                             </tr>
                         </table>
                         <p>
                             <button type="submit" name="submit_ip_blocker" class="button button-primary">
-                                Сохранить блокировку IP
+                                Обновить блокировку IP
                             </button>
                         </p>
                     </form>
@@ -562,39 +564,37 @@ class Advanced_Security_Blocker {
                 <div id="tab-login-protection" class="security-tab-content">
                     <h2>Ограничение доступа к wp-login.php и xmlrpc.php</h2>
                     <div class="security-warning">
-                        <strong>Внимание!</strong> Убедитесь, что ваш IP-адрес добавлен в белый список, иначе вы не сможете войти в админ-панель!
+                        <strong>Внимание!</strong> Убедитесь, что ваш IP-адрес включен в белый список, чтобы вы не потеряли доступ к админ-панели!
                         <br>Ваш текущий IP: <strong><?php echo esc_html($current_user_ip); ?></strong>
                     </div>
                     <div class="asn-info">
-                        <strong>Поддержка ASN!</strong> Можно разрешить доступ целым автономным системам, например <code>AS15169</code> для Google.
-                    </div>
-                    
-                    <div class="protection-options">
-                        <h3>Выберите файлы для защиты:</h3>
-                        <div class="protection-checkbox">
-                            <input type="checkbox" id="protect_wp_login" name="protect_wp_login" value="1" 
-                                <?php checked($current_protection['wp_login']); ?>>
-                            <label for="protect_wp_login">
-                                <strong>wp-login.php</strong> - Защита страницы входа в админ-панель
-                            </label>
-                        </div>
-                        <div class="protection-checkbox">
-                            <input type="checkbox" id="protect_xmlrpc" name="protect_xmlrpc" value="1" 
-                                <?php checked($current_protection['xmlrpc']); ?>>
-                            <label for="protect_xmlrpc">
-                                <strong>xmlrpc.php</strong> - Защита XML-RPC интерфейса (используется для удаленного управления)
-                            </label>
-                        </div>
-                        <p class="description">
-                            <strong>xmlrpc.php</strong> часто используется для атак методом перебора паролей. 
-                            Рекомендуется блокировать его, если вы не используете мобильные приложения WordPress или удаленное управление.
-                        </p>
+                        <strong>Поддержка ASN!</strong> Можно добавлять целые сети провайдеров, например <code>AS15169</code> для Google.
                     </div>
                     
                     <form method="post">
                         <?php wp_nonce_field('security_blocker_update'); ?>
-                        <input type="hidden" id="protect_wp_login_hidden" name="protect_wp_login" value="0">
-                        <input type="hidden" id="protect_xmlrpc_hidden" name="protect_xmlrpc" value="0">
+                        
+                        <div class="protection-options">
+                            <h3>Выберите файлы для защиты:</h3>
+                            <div class="protection-checkbox">
+                                <input type="checkbox" id="protect_wp_login" name="protect_wp_login" value="1" 
+                                    <?php checked($current_protection['wp_login']); ?>>
+                                <label for="protect_wp_login">
+                                    <strong>wp-login.php</strong> - защита страницы входа в админ-панель
+                                </label>
+                            </div>
+                            <div class="protection-checkbox">
+                                <input type="checkbox" id="protect_xmlrpc" name="protect_xmlrpc" value="1" 
+                                    <?php checked($current_protection['xmlrpc']); ?>>
+                                <label for="protect_xmlrpc">
+                                    <strong>xmlrpc.php</strong> - защита XML-RPC интерфейса (используется для мобильных приложений)
+                                </label>
+                            </div>
+                            <p class="description">
+                                <strong>xmlrpc.php</strong> может использоваться для атак методом перебора паролей. 
+                                Рекомендуется заблокировать его, если вы не используете мобильные приложения WordPress или внешние сервисы.
+                            </p>
+                        </div>
                         
                         <table class="form-table">
                             <tr>
@@ -609,19 +609,19 @@ class Advanced_Security_Blocker {
                                     </div>
                                     <p class="description ip-blocker-description">
                                         По одной записи на строку. Поддерживаемые форматы:<br>
-                                        • Одиночный IP: <code>192.168.1.100</code><br>
-                                        • CIDR диапазон: <code>192.168.1.0/24</code><br>
-                                        • ASN (автономная система): <code>AS15169</code> или <code>15169</code><br>
+                                        • Отдельные IP: <code>192.168.1.100</code><br>
+                                        • CIDR диапазоны: <code>192.168.1.0/24</code><br>
+                                        • ASN (автономные системы): <code>AS15169</code> или <code>15169</code><br>
                                         • Маска подсети: <code>192.168.1.0 255.255.255.0</code><br>
-                                        • Частичный IP: <code>192.168.1</code><br>
-                                        <em>ASN автоматически преобразуется в список разрешенных диапазонов</em>
+                                        • Частичные IP: <code>192.168.1</code><br>
+                                        <em>ASN автоматически преобразуются в списки разрешенных диапазонов</em>
                                     </p>
                                 </td>
                             </tr>
                         </table>
                         <p>
                             <button type="submit" name="submit_login_protection" class="button button-primary">
-                                Сохранить защиту
+                                Обновить защиту
                             </button>
                             <button type="button" class="button" onclick="addCurrentIP();">
                                 Добавить мой IP
@@ -652,7 +652,7 @@ class Advanced_Security_Blocker {
                         </table>
                         <p>
                             <button type="submit" name="submit_file_protection" class="button button-primary">
-                                Сохранить защиту файлов
+                                Обновить защиту файлов
                             </button>
                         </p>
                     </form>
@@ -660,9 +660,9 @@ class Advanced_Security_Blocker {
 
                 <!-- Вкладка защиты от ботов -->
                 <div id="tab-bot-protection" class="security-tab-content">
-                    <h2>Блокировка ботов и вредоносных User-Agent</h2>
+                    <h2>Блокировка ботов и нежелательных User-Agent</h2>
                     <div class="security-info">
-                        Список User-Agent строк, разделенных символом "|". Запросы с этими User-Agent будут заблокированы.
+                        Список User-Agent ботов, разделенных символом "|". Частичные и точные User-Agent будут заблокированы.
                     </div>
                     <form method="post">
                         <?php wp_nonce_field('security_blocker_update'); ?>
@@ -674,13 +674,13 @@ class Advanced_Security_Blocker {
                                         class="simple-textarea" placeholder="BadBot|SpamBot|Crawler"><?php 
                                         echo esc_textarea($current_bots); 
                                     ?></textarea>
-                                    <p class="description">User-Agent строки, разделенные символом "|". Поддерживается частичное совпадение.</p>
+                                    <p class="description">User-Agent строки, разделенные символом "|". Поддерживаются частичные совпадения.</p>
                                 </td>
                             </tr>
                         </table>
                         <p>
                             <button type="submit" name="submit_bot_protection" class="button button-primary">
-                                Сохранить защиту от ботов
+                                Обновить защиту от ботов
                             </button>
                         </p>
                     </form>
@@ -690,17 +690,17 @@ class Advanced_Security_Blocker {
                 <div id="tab-status" class="security-tab-content">
                     <h2>Статус системы безопасности</h2>
                     <div class="card">
-                        <h3>Системная информация</h3>
+                        <h3>Состояние компонентов</h3>
                         <ul>
                             <li>Файл .htaccess: <?php echo is_writable($this->htaccess_path) ? 
-                                '<span style="color:green">✓ Доступен для записи</span>' : 
-                                '<span style="color:red">✗ Недоступен для записи</span>'; ?></li>
+                                '<span style="color:green">✓ доступен для записи</span>' : 
+                                '<span style="color:red">✗ недоступен для записи</span>'; ?></li>
                             <li>Резервные копии: <?php echo is_writable($this->backup_dir) ? 
-                                '<span style="color:green">✓ Доступны</span>' : 
-                                '<span style="color:red">✗ Недоступны</span>'; ?></li>
-                            <li>Кэш ASN: <?php echo is_writable($this->cache_dir) ? 
-                                '<span style="color:green">✓ Доступен</span>' : 
-                                '<span style="color:red">✗ Недоступен</span>'; ?></li>
+                                '<span style="color:green">✓ доступны</span>' : 
+                                '<span style="color:red">✗ недоступны</span>'; ?></li>
+                            <li>Кеш ASN: <?php echo is_writable($this->cache_dir) ? 
+                                '<span style="color:green">✓ доступен</span>' : 
+                                '<span style="color:red">✗ недоступен</span>'; ?></li>
                             <li>Последняя резервная копия: <?php 
                                 $backups = glob($this->backup_dir . 'htaccess-*.bak');
                                 if (!empty($backups)) {
@@ -710,7 +710,7 @@ class Advanced_Security_Blocker {
                                     echo '<span style="color:orange">не создана</span>';
                                 }
                             ?></li>
-                            <li>Кэшированных ASN: <?php 
+                            <li>Кешированные ASN: <?php 
                                 $cache_files = glob($this->cache_dir . 'asn_*.json');
                                 echo '<span style="color:blue">' . count($cache_files) . '</span>';
                             ?></li>
@@ -722,23 +722,23 @@ class Advanced_Security_Blocker {
                         <h3>Активные защиты</h3>
                         <ul>
                             <li>Блокировка IP: <?php echo !empty($current_ips) ? 
-                                '<span style="color:green">✓ Активна (' . count(array_filter(explode("\n", trim($current_ips)))) . ' записей)</span>' : 
-                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                                '<span style="color:green">✓ активна (' . count(array_filter(explode("\n", trim($current_ips)))) . ' записей)</span>' : 
+                                '<span style="color:gray">○ неактивна</span>'; ?></li>
                             <li>Защита wp-login.php: <?php echo $current_protection['wp_login'] ? 
-                                '<span style="color:green">✓ Активна</span>' : 
-                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                                '<span style="color:green">✓ активна</span>' : 
+                                '<span style="color:gray">○ неактивна</span>'; ?></li>
                             <li>Защита xmlrpc.php: <?php echo $current_protection['xmlrpc'] ? 
-                                '<span style="color:green">✓ Активна</span>' : 
-                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
-                            <li>Разрешенных IP: <?php echo !empty($current_whitelist) ? 
+                                '<span style="color:green">✓ активна</span>' : 
+                                '<span style="color:gray">○ неактивна</span>'; ?></li>
+                            <li>Разрешенные IP: <?php echo !empty($current_whitelist) ? 
                                 '<span style="color:green">' . count(array_filter(explode("\n", trim($current_whitelist)))) . ' записей</span>' : 
                                 '<span style="color:gray">0 записей</span>'; ?></li>
                             <li>Блокировка файлов: <?php echo !empty($current_files) ? 
-                                '<span style="color:green">✓ Активна (' . count(array_filter(explode("\n", trim($current_files)))) . ' правил)</span>' : 
-                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                                '<span style="color:green">✓ активна (' . count(array_filter(explode("\n", trim($current_files)))) . ' файлов)</span>' : 
+                                '<span style="color:gray">○ неактивна</span>'; ?></li>
                             <li>Защита от ботов: <?php echo !empty($current_bots) ? 
-                                '<span style="color:green">✓ Активна</span>' : 
-                                '<span style="color:gray">○ Неактивна</span>'; ?></li>
+                                '<span style="color:green">✓ активна</span>' : 
+                                '<span style="color:gray">○ неактивна</span>'; ?></li>
                         </ul>
                     </div>
 
@@ -749,7 +749,7 @@ class Advanced_Security_Blocker {
                         </a>
                         <a href="<?php echo esc_url(admin_url('options-general.php?page=advanced-security-blocker&clear_cache=1')); ?>" 
                            class="button">
-                            Очистить кэш ASN
+                            Очистить кеш ASN
                         </a>
                     </p>
                 </div>
@@ -794,7 +794,7 @@ class Advanced_Security_Blocker {
                 }
             }
             
-            // Обработчик клика по кнопкам вкладок
+            // Обработчики кликов по кнопкам вкладок
             var tabButtons = document.querySelectorAll('.security-tab-nav button');
             tabButtons.forEach(function(button) {
                 button.addEventListener('click', function(e) {
@@ -807,29 +807,7 @@ class Advanced_Security_Blocker {
             // Показываем первую вкладку по умолчанию
             showTab("tab-ip-blocking");
             
-            // Синхронизация чекбоксов с скрытыми полями
-            var wpLoginCheckbox = document.getElementById('protect_wp_login');
-            var xmlrpcCheckbox = document.getElementById('protect_xmlrpc');
-            var wpLoginHidden = document.getElementById('protect_wp_login_hidden');
-            var xmlrpcHidden = document.getElementById('protect_xmlrpc_hidden');
-            
-            if (wpLoginCheckbox && wpLoginHidden) {
-                wpLoginCheckbox.addEventListener('change', function() {
-                    wpLoginHidden.value = this.checked ? '1' : '0';
-                });
-                // Устанавливаем начальное значение
-                wpLoginHidden.value = wpLoginCheckbox.checked ? '1' : '0';
-            }
-            
-            if (xmlrpcCheckbox && xmlrpcHidden) {
-                xmlrpcCheckbox.addEventListener('change', function() {
-                    xmlrpcHidden.value = this.checked ? '1' : '0';
-                });
-                // Устанавливаем начальное значение
-                xmlrpcHidden.value = xmlrpcCheckbox.checked ? '1' : '0';
-            }
-            
-            // Нумерация строк для textarea
+            // Настройка номеров строк для textarea
             function setupLineNumbers(wrapper) {
                 var textarea = wrapper.querySelector('textarea');
                 var lineNumbersDiv = wrapper.querySelector('.ip-blocker-line-numbers');
@@ -921,7 +899,7 @@ class Advanced_Security_Blocker {
             $duplicates_count = $original_count - count($ip_list);
             
             if ($duplicates_count > 0) {
-                $this->log[] = "Удалено дубликатов: $duplicates_count";
+                $this->log[] = "Удалены дубликаты: $duplicates_count";
             }
             
             $rules = [];
@@ -947,7 +925,7 @@ class Advanced_Security_Blocker {
                         $invalid_ips[] = $entry;
                     }
                 }
-                // Проверяем CIDR диапазон
+                // Обработка CIDR диапазонов
                 else if (strpos($entry, '/') !== false) {
                     list($ip, $mask) = explode('/', $entry, 2);
                     if (filter_var($ip, FILTER_VALIDATE_IP) && 
@@ -958,7 +936,7 @@ class Advanced_Security_Blocker {
                         $invalid_ips[] = $entry;
                     }
                 }
-                // Обычный IP
+                // Простые IP
                 else if (filter_var($entry, FILTER_VALIDATE_IP)) {
                     $rules[] = "deny from {$entry}";
                     $valid_ips[] = $entry;
@@ -968,7 +946,7 @@ class Advanced_Security_Blocker {
             }
             
             if (!empty($invalid_ips)) {
-                $this->log[] = "Недопустимые записи (игнорированы): " . implode(', ', $invalid_ips);
+                $this->log[] = "Некорректные записи (проигнорированы): " . implode(', ', $invalid_ips);
             }
             
             $htaccess = file_exists($this->htaccess_path) ? 
@@ -989,7 +967,7 @@ class Advanced_Security_Blocker {
                 throw new Exception('Не удалось записать в .htaccess');
             }
             
-            $this->log[] = "Изменения успешно применены";
+            $this->log[] = "Настройки успешно сохранены";
             return true;
             
         } catch (Exception $e) {
@@ -1021,7 +999,7 @@ class Advanced_Security_Blocker {
                     throw new Exception('Не удалось записать в .htaccess');
                 }
                 
-                $this->log[] = "Изменения успешно применены";
+                $this->log[] = "Настройки успешно сохранены";
                 return true;
             }
             
@@ -1050,7 +1028,7 @@ class Advanced_Security_Blocker {
                     foreach ($ip_list as $entry) {
                         $is_valid = false;
                         
-                        // Проверяем ASN
+                        // Обработка ASN
                         if (preg_match('/^AS?(\d+)$/i', $entry, $matches)) {
                             $asn = $matches[1];
                             $this->log[] = "Обработка ASN для whitelist: AS{$asn}";
@@ -1065,7 +1043,7 @@ class Advanced_Security_Blocker {
                                 $is_valid = true;
                             }
                         }
-                        // CIDR диапазон
+                        // CIDR диапазоны
                         else if (strpos($entry, '/') !== false) {
                             list($ip, $mask) = explode('/', $entry, 2);
                             if (filter_var($ip, FILTER_VALIDATE_IP) && 
@@ -1075,7 +1053,7 @@ class Advanced_Security_Blocker {
                                 $is_valid = true;
                             }
                         }
-                        // Обычный IP
+                        // Простые IP
                         else if (filter_var($entry, FILTER_VALIDATE_IP)) {
                             $rules[] = "Allow from {$entry}";
                             $valid_ips[] = $entry;
@@ -1122,7 +1100,7 @@ class Advanced_Security_Blocker {
                 }
                 
                 if (!empty($invalid_ips)) {
-                    $this->log[] = "Недопустимые записи (игнорированы): " . implode(', ', $invalid_ips);
+                    $this->log[] = "Некорректные записи (проигнорированы): " . implode(', ', $invalid_ips);
                 }
                 
                 // Удаляем последнюю пустую строку
@@ -1134,8 +1112,8 @@ class Advanced_Security_Blocker {
                 $htaccess = $block . $htaccess;
                 
                 $protected_files = implode(', ', $files_to_protect);
-                $this->log[] = "Защита активирована для: {$protected_files}";
-                $this->log[] = "IP/диапазоны: " . count(array_unique($valid_ips)) . ", ASN диапазоны: " . count(array_unique($asn_ranges));
+                $this->log[] = "Защита настроена для: {$protected_files}";
+                $this->log[] = "IP/диапазонов: " . count(array_unique($valid_ips)) . ", ASN диапазонов: " . count(array_unique($asn_ranges));
             } else {
                 $this->log[] = "Не указаны разрешенные IP адреса";
                 return "Необходимо указать хотя бы один разрешенный IP адрес";
@@ -1145,7 +1123,7 @@ class Advanced_Security_Blocker {
                 throw new Exception('Не удалось записать в .htaccess');
             }
             
-            $this->log[] = "Изменения успешно применены";
+            $this->log[] = "Настройки успешно сохранены";
             return true;
             
         } catch (Exception $e) {
@@ -1188,7 +1166,7 @@ class Advanced_Security_Blocker {
                 $block = "\n" . $this->marker_files . "\n" . implode("\n", $rules) . "\n" . $this->marker_files . "\n";
                 $htaccess = $block . $htaccess;
                 
-                $this->log[] = "Защита файлов активирована для " . count($file_list) . " правил";
+                $this->log[] = "Защита файлов настроена для " . count($file_list) . " файлов";
             } else {
                 $this->log[] = "Защита файлов отключена";
             }
@@ -1197,7 +1175,7 @@ class Advanced_Security_Blocker {
                 throw new Exception('Не удалось записать в .htaccess');
             }
             
-            $this->log[] = "Изменения успешно применены";
+            $this->log[] = "Настройки успешно сохранены";
             return true;
             
         } catch (Exception $e) {
@@ -1228,7 +1206,7 @@ class Advanced_Security_Blocker {
                 $bot_list = array_filter($bot_list);
                 $bot_list = array_unique($bot_list);
                 
-                // Очищаем от потенциально опасных символов
+                // Убираем из списка некорректные символы
                 $cleaned_bots = [];
                 $skipped_bots = [];
                 
@@ -1238,7 +1216,7 @@ class Advanced_Security_Blocker {
                         continue;
                     }
                     
-                    // Для SetEnvIfNoCase можем оставить больше символов
+                    // Для SetEnvIfNoCase нужно экранировать только кавычки
                     $cleaned_bot = preg_replace('/["\'\\\]/', '', $bot);
                     
                     if (!empty($cleaned_bot) && strlen($cleaned_bot) > 1) {
@@ -1249,11 +1227,11 @@ class Advanced_Security_Blocker {
                 }
                 
                 if (!empty($skipped_bots)) {
-                    $this->log[] = "Пропущено проблемных User-Agent: " . count($skipped_bots);
+                    $this->log[] = "Пропущены некорректные User-Agent: " . count($skipped_bots);
                 }
                 
                 if (!empty($cleaned_bots)) {
-                    // Разбиваем на группы для избежания слишком длинных строк
+                    // Разбиваем на группы для избежания слишком длинных строк регекса
                     $bot_groups = array_chunk($cleaned_bots, 100);
                     $rules = [];
                     
@@ -1268,7 +1246,7 @@ class Advanced_Security_Blocker {
                     $rules[] = '    Order Allow,Deny';
                     $rules[] = '    Allow from all';
                     
-                    // Добавляем все переменные блокировки
+                    // Блокируем все переменные окружения
                     for ($i = 0; $i < count($bot_groups); $i++) {
                         $rules[] = '    Deny from env=block_bot' . ($i > 0 ? '_' . $i : '');
                     }
@@ -1278,9 +1256,9 @@ class Advanced_Security_Blocker {
                     $block = "\n" . $this->marker_bots . "\n" . implode("\n", $rules) . "\n" . $this->marker_bots . "\n";
                     $htaccess = $block . $htaccess;
                     
-                    $this->log[] = "Защита от ботов активирована для " . count($cleaned_bots) . " User-Agent в " . count($bot_groups) . " группах";
+                    $this->log[] = "Защита от ботов настроена для " . count($cleaned_bots) . " User-Agent в " . count($bot_groups) . " группах";
                 } else {
-                    $this->log[] = "Все User-Agent содержали недопустимые символы и были отфильтрованы";
+                    $this->log[] = "Все User-Agent оказались некорректными и были проигнорированы";
                 }
             } else {
                 $this->log[] = "Защита от ботов отключена";
@@ -1290,7 +1268,7 @@ class Advanced_Security_Blocker {
                 throw new Exception('Не удалось записать в .htaccess');
             }
             
-            $this->log[] = "Изменения успешно применены";
+            $this->log[] = "Настройки успешно сохранены";
             return true;
             
         } catch (Exception $e) {
@@ -1366,7 +1344,7 @@ class Advanced_Security_Blocker {
         }
     }
 
-    // Деактивация плагина - очистка всех правил
+    // Деактивация плагина - удаляем всех правил
     public function deactivate() {
         $this->update_ip_rules('');
         $this->update_login_protection('', false, false);
